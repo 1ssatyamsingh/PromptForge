@@ -25,7 +25,7 @@ import {
   TrashIcon,
 } from "./WorkspaceIcons";
 
-const RUN_MODEL = "gpt-4.1";
+const RUN_MODEL = "openai/gpt-oss-120b";
 const RUN_TEMPERATURE = 0.7;
 
 const formatLatency = (ms) => {
@@ -534,7 +534,7 @@ const Workspace = ({ promptId }) => {
               <div className="editor-settings">
                 <div className="editor-chip editor-chip-model">
                   <span className="editor-chip-dot" aria-hidden="true" />
-                  GPT-4.1
+                  GPT-OSS 120B
                 </div>
                 <div className="editor-chip">Temp 0.7</div>
 
@@ -653,7 +653,7 @@ const Workspace = ({ promptId }) => {
                 {!running && runError && (
                   <div className="response-error">
                     <p className="response-error-text">
-                      Unable to generate response.
+                      {runError}
                     </p>
                     <Button variant="ghost" onClick={handleRun}>
                       Try Again

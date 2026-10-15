@@ -13,6 +13,6 @@ export const DEFAULT_PROMPT = {
   title: "interview-question.prompt",
   content:
     "Write an interview question for a senior React developer...\n\nInclude one follow-up question about performance optimization.\n\nEnd with evaluation criteria.",
-  model: "GPT-4.1",
+  model: "GPT-OSS 120B",
   temperature: "0.7",
 };

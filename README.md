@@ -29,7 +29,7 @@ An AI-powered prompt engineering and benchmarking platform that helps users crea
 - Rate Limiting
 - Input Validation
 - MongoDB Atlas Integration
-- OpenAI API Integration
+- Groq API Integration (GPT-OSS 120B, Qwen 3.8, Llama)
 
 ---
 
@@ -56,7 +56,7 @@ An AI-powered prompt engineering and benchmarking platform that helps users crea
 
 ### AI
 
-- OpenAI API
+- Groq API (GPT-OSS 120B, Qwen 3.8, Llama)
 - AI Prompt Optimization
 - AI Prompt Quality Analysis
 - LLM-based Response Evaluation
@@ -240,8 +240,28 @@ The Prompt Library helps users manage and organize their prompts.
 - Rate Limiting
 - Atomic Credit Handling
 - Secure Error Handling
-- Server-side OpenAI API Key Management
+- Server-side Groq API Key Management
 - Environment-based CORS Configuration
+
+---
+
+### Environment Variables
+
+#### Server (`server/.env`)
+
+Create `server/.env` based on `server/.env.example`:
+
+```env
+GOOGLE_CLIENT_ID=your_google_client_id
+GROQ_API_KEY=gsk_your_groq_api_key_here
+JWT_SECRET=your_jwt_secret
+NODE_ENV=development
+MONGODB_URI=your_mongodb_connection_string
+PORT=8000
+CLIENT_URL=http://localhost:5173
+```
+
+> **Note**: Get your free Groq API key from [Groq Console](https://console.groq.com/keys).
 
 ---
 

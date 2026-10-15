@@ -62,23 +62,27 @@ export const listPromptVersions = async (id) => {
   return data.versions;
 };
 
-export const runPrompt = async (id, { model, temperature, variables } = {}) => {
+export const runPrompt = async (id, { model, temperature, variables, content } = {}) => {
   const { data } = await api.post(`/api/prompts/${id}/run`, {
     model,
     temperature,
     variables,
+    content,
   });
   return data;
 };
 
-export const optimizePrompt = async (id) => {
-  const { data } = await api.post(`/api/prompts/${id}/optimize`);
+export const optimizePrompt = async (id, { content } = {}) => {
+  const { data } = await api.post(`/api/prompts/${id}/optimize`, {
+    content,
+  });
   return data;
 };
 
-export const analyzePrompt = async (id, { versionId } = {}) => {
+export const analyzePrompt = async (id, { versionId, content } = {}) => {
   const { data } = await api.post(`/api/prompts/${id}/analyze`, {
     versionId,
+    content,
   });
   return data;
 };

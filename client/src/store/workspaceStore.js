@@ -357,7 +357,7 @@ const useWorkspaceStore = create((set, get) => ({
     }
   },
 
-  runPrompt: async ({ model = "gpt-4.1", temperature = 0.7 } = {}) => {
+  runPrompt: async ({ model = "openai/gpt-oss-120b", temperature = 0.7 } = {}) => {
     const { activePromptId, running, editorContent, variableValues } = get();
 
     if (!activePromptId || running) return;
@@ -379,6 +379,7 @@ const useWorkspaceStore = create((set, get) => ({
         model,
         temperature,
         variables: variableValues,
+        content: editorContent,
       });
 
       set({
@@ -408,14 +409,16 @@ const useWorkspaceStore = create((set, get) => ({
   },
 
   optimizePrompt: async () => {
-    const { activePromptId, isOptimizing } = get();
+    const { activePromptId, isOptimizing, editorContent } = get();
 
     if (!activePromptId || isOptimizing) return;
 
     set({ isOptimizing: true, optimizationError: null, error: null });
 
     try {
-      const result = await promptsApi.optimizePrompt(activePromptId);
+      const result = await promptsApi.optimizePrompt(activePromptId, {
+        content: editorContent,
+      });
 
       set({
         isOptimizing: false,
@@ -487,7 +490,7 @@ const useWorkspaceStore = create((set, get) => ({
   },
 
   analyzePrompt: async () => {
-    const { activePromptId, isAnalyzing, viewingVersionNumber, versions } = get();
+    const { activePromptId, isAnalyzing, viewingVersionNumber, versions, editorContent } = get();
 
     if (!activePromptId || isAnalyzing) return;
 
@@ -500,6 +503,7 @@ const useWorkspaceStore = create((set, get) => ({
     try {
       const result = await promptsApi.analyzePrompt(activePromptId, {
         versionId: version?._id,
+        content: editorContent,
       });
 
       set({

@@ -5,11 +5,12 @@ import Comparison from "../models/Comparison.js";
 import { findOwnedPrompt, isValidObjectId } from "../utils/promptOwnership.js";
 import { reserveCredit, refundCredit } from "../utils/credits.js";
 import {
-  runPrompt as callOpenAI,
+  runPrompt as callAI,
   judgeComparison,
-} from "../services/openaiService.js";
+} from "../services/groqService.js";
 import {
   DEFAULT_MODEL,
+  normalizeModel,
   isSupportedModel,
   getSupportedModels,
   calculateCost,
@@ -35,7 +36,7 @@ const sanitizeVariableValues = (raw) => {
 
 const timedRun = async (args) => {
   const startedAt = Date.now();
-  const result = await callOpenAI(args);
+  const result = await callAI(args);
   return { ...result, latencyMs: Date.now() - startedAt };
 };
 
@@ -125,10 +126,10 @@ export const compareVersions = async (req, res) => {
     const resolvedA = resolveVariables(versionA.content, variableValues);
     const resolvedB = resolveVariables(versionB.content, variableValues);
 
-    const model = requestedModel || DEFAULT_MODEL;
+    const model = normalizeModel(requestedModel || DEFAULT_MODEL);
     if (!isSupportedModel(model)) {
       return res.status(400).json({
-        message: `Unsupported model "${model}". Supported models: ${getSupportedModels().join(
+        message: `Unsupported model "${requestedModel}". Supported models: ${getSupportedModels().join(
           ", "
         )}`,
       });
@@ -156,9 +157,10 @@ export const compareVersions = async (req, res) => {
       });
     }
 
-    if (!process.env.OPENAI_API_KEY) {
+    const hasApiKey = Boolean(process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY);
+    if (!hasApiKey) {
       return res.status(500).json({
-        message: "AI execution is not configured on the server yet.",
+        message: "AI execution is not configured on the server yet. Please add GROQ_API_KEY to your server/.env file.",
       });
     }
 
@@ -283,14 +285,19 @@ export const compareVersions = async (req, res) => {
   }
 };
 
-const mapOpenAIErrorStatus = (err) => {
+const mapAIErrorStatus = (err) => {
   if (err.code === "TIMEOUT") return 504;
   if (err.code === "MISSING_API_KEY") return 500;
   return 502;
 };
 
-const mapOpenAIErrorMessage = (err) => {
+const mapAIErrorMessage = (err) => {
   if (err.code === "TIMEOUT") return "The AI request timed out. Please try again.";
-  if (err.code === "MISSING_API_KEY") return "AI execution is not configured on the server yet.";
-  return "The AI provider failed to respond. Please try again.";
+  if (err.code === "MISSING_API_KEY") {
+    return "AI execution is not configured on the server yet. Please add GROQ_API_KEY to your server/.env file.";
+  }
+  return err.message || "The AI provider failed to respond. Please try again.";
 };
+
+const mapOpenAIErrorStatus = mapAIErrorStatus;
+const mapOpenAIErrorMessage = mapAIErrorMessage;

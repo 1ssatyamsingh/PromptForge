@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import Button from "../../components/ui/Button";
-import Portal from "../../components/ui/Portal";
+
 import useBodyScrollLock from "../../hooks/useBodyScrollLock";
 import useWorkspaceStore from "../../store/workspaceStore";
 
@@ -45,7 +45,7 @@ const OptimizeModal = () => {
   if (!optimizationModalOpen || optimizedPrompt === null) return null;
 
   return (
-    <Portal>
+    
       <div
         className="optimize-overlay"
         onMouseDown={(e) => {
@@ -101,7 +101,7 @@ const OptimizeModal = () => {
           </div>
         </div>
       </div>
-    </Portal>
+    
   );
 };
 

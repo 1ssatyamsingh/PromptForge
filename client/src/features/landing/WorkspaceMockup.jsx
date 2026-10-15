@@ -95,7 +95,7 @@ const WorkspaceMockup = () => {
 
           <div className="editor-footer">
             <div className="editor-settings">
-              <div className="editor-chip">GPT-4.1</div>
+              <div className="editor-chip">GPT-OSS 120B</div>
 
               <div className="editor-chip">Temp 0.7</div>
             </div>

@@ -3,12 +3,13 @@ import PromptVersion from "../models/PromptVersion.js";
 import Collection from "../models/Collection.js";
 import User from "../models/User.js";
 import {
-  runPrompt as callOpenAI,
-  optimizePrompt as callOpenAIOptimize,
-  analyzePromptQuality as callOpenAIAnalyze,
-} from "../services/openaiService.js";
+  runPrompt as callAI,
+  optimizePrompt as callAIOptimize,
+  analyzePromptQuality as callAIAnalyze,
+} from "../services/groqService.js";
 import {
   DEFAULT_MODEL,
+  normalizeModel,
   isSupportedModel,
   getSupportedModels,
   calculateCost,
@@ -24,17 +25,22 @@ const MAX_PROMPT_CONTENT_LENGTH = 20_000;
 const MAX_VARIABLE_KEYS = 50;
 const MAX_VARIABLE_VALUE_LENGTH = 5_000;
 
-const mapOpenAIErrorStatus = (err) => {
+const mapAIErrorStatus = (err) => {
   if (err.code === "TIMEOUT") return 504;
   if (err.code === "MISSING_API_KEY") return 500;
   return 502;
 };
 
-const mapOpenAIErrorMessage = (err) => {
+const mapAIErrorMessage = (err) => {
   if (err.code === "TIMEOUT") return "The AI request timed out. Please try again.";
-  if (err.code === "MISSING_API_KEY") return "AI execution is not configured on the server yet.";
-  return "The AI provider failed to respond. Please try again.";
+  if (err.code === "MISSING_API_KEY") {
+    return "AI execution is not configured on the server yet. Please add GROQ_API_KEY to your server/.env file.";
+  }
+  return err.message || "The AI provider failed to respond. Please try again.";
 };
+
+const mapOpenAIErrorStatus = mapAIErrorStatus;
+const mapOpenAIErrorMessage = mapAIErrorMessage;
 
 const sanitizeVariableValues = (raw) => {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
@@ -379,19 +385,20 @@ export const runPromptExecution = async (req, res) => {
   try {
     const prompt = await findOwnedPrompt(req.params.id, req.userId);
 
-    if (!prompt) {
-      return res.status(404).json({ message: "Prompt not found" });
-    }
+    let { model, temperature, variables, content: incomingContent } = req.body || {};
 
-    const content = (prompt.content || "").trim();
+    const content = (incomingContent || prompt.content || "").trim();
     if (!content) {
       return res.status(400).json({
         message:
-          "This prompt has no saved content to run. Write something and save a version first.",
+          "This prompt has no content to run. Please write something in the editor first.",
       });
     }
 
-    let { model, temperature, variables } = req.body || {};
+    if (!prompt.content && content) {
+      prompt.content = content;
+      await prompt.save().catch(() => {});
+    }
 
     const variableValues = sanitizeVariableValues(variables);
     const missing = findMissingVariables(content, variableValues);
@@ -406,10 +413,11 @@ export const runPromptExecution = async (req, res) => {
     }
     const resolvedContent = resolveVariables(content, variableValues);
 
-    model = model || DEFAULT_MODEL;
+    const rawModel = model || DEFAULT_MODEL;
+    model = normalizeModel(rawModel);
     if (!isSupportedModel(model)) {
       return res.status(400).json({
-        message: `Unsupported model "${model}". Supported models: ${getSupportedModels().join(
+        message: `Unsupported model "${rawModel}". Supported models: ${getSupportedModels().join(
           ", "
         )}`,
       });
@@ -436,9 +444,10 @@ export const runPromptExecution = async (req, res) => {
       });
     }
 
-    if (!process.env.OPENAI_API_KEY) {
+    const hasApiKey = Boolean(process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY);
+    if (!hasApiKey) {
       return res.status(500).json({
-        message: "AI execution is not configured on the server yet.",
+        message: "AI execution is not configured on the server yet. Please add GROQ_API_KEY to your server/.env file.",
       });
     }
 
@@ -453,9 +462,9 @@ export const runPromptExecution = async (req, res) => {
     let result;
 
     try {
-      result = await callOpenAI({ prompt: resolvedContent, model, temperature });
+      result = await callAI({ prompt: resolvedContent, model, temperature });
     } catch (err) {
-      console.error("OpenAI run error:", err.message);
+      console.error("AI run error:", err.message);
 
       await refundCredit(req.userId);
 
@@ -467,12 +476,12 @@ export const runPromptExecution = async (req, res) => {
 
       if (err.code === "MISSING_API_KEY") {
         return res.status(500).json({
-          message: "AI execution is not configured on the server yet.",
+          message: "AI execution is not configured on the server yet. Please add GROQ_API_KEY to your server/.env file.",
         });
       }
 
       return res.status(502).json({
-        message: "The AI provider failed to respond. Please try again.",
+        message: err.message || "The AI provider failed to respond. Please try again.",
       });
     }
 
@@ -523,12 +532,18 @@ export const optimizePromptExecution = async (req, res) => {
       return res.status(404).json({ message: "Prompt not found" });
     }
 
-    const content = (prompt.content || "").trim();
+    const incomingContent = req.body?.content;
+    const content = (incomingContent || prompt.content || "").trim();
     if (!content) {
       return res.status(400).json({
         message:
-          "This prompt has no saved content to optimize. Write something and save a version first.",
+          "This prompt has no content to optimize. Please write something in the editor first.",
       });
+    }
+
+    if (!prompt.content && content) {
+      prompt.content = content;
+      await prompt.save().catch(() => {});
     }
 
     const model = DEFAULT_MODEL;
@@ -544,9 +559,10 @@ export const optimizePromptExecution = async (req, res) => {
       });
     }
 
-    if (!process.env.OPENAI_API_KEY) {
+    const hasApiKey = Boolean(process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY);
+    if (!hasApiKey) {
       return res.status(500).json({
-        message: "AI execution is not configured on the server yet.",
+        message: "AI execution is not configured on the server yet. Please add GROQ_API_KEY to your server/.env file.",
       });
     }
 
@@ -561,9 +577,9 @@ export const optimizePromptExecution = async (req, res) => {
     let result;
 
     try {
-      result = await callOpenAIOptimize({ prompt: content, model });
+      result = await callAIOptimize({ prompt: content, model });
     } catch (err) {
-      console.error("OpenAI optimize error:", err.message);
+      console.error("AI optimize error:", err.message);
       await refundCredit(req.userId);
 
       if (err.code === "TIMEOUT") {
@@ -574,12 +590,12 @@ export const optimizePromptExecution = async (req, res) => {
 
       if (err.code === "MISSING_API_KEY") {
         return res.status(500).json({
-          message: "AI execution is not configured on the server yet.",
+          message: "AI execution is not configured on the server yet. Please add GROQ_API_KEY to your server/.env file.",
         });
       }
 
       return res.status(502).json({
-        message: "The AI provider failed to respond. Please try again.",
+        message: err.message || "The AI provider failed to respond. Please try again.",
       });
     }
 
@@ -635,11 +651,13 @@ export const analyzePromptExecution = async (req, res) => {
       return res.status(404).json({ message: "Prompt not found" });
     }
 
-    const { versionId } = req.body || {};
+    const { versionId, content: incomingContent } = req.body || {};
 
     let content;
 
-    if (versionId !== undefined && versionId !== null && versionId !== "") {
+    if (incomingContent && typeof incomingContent === "string" && incomingContent.trim()) {
+      content = incomingContent;
+    } else if (versionId !== undefined && versionId !== null && versionId !== "") {
       if (!isValidObjectId(versionId)) {
         return res.status(400).json({ message: "Invalid version id" });
       }
@@ -666,8 +684,13 @@ export const analyzePromptExecution = async (req, res) => {
     if (!content) {
       return res.status(400).json({
         message:
-          "This prompt has no saved content to analyze. Write something and save a version first.",
+          "This prompt has no content to analyze. Please write something in the editor first.",
       });
+    }
+
+    if (!prompt.content && content) {
+      prompt.content = content;
+      await prompt.save().catch(() => {});
     }
 
     const model = DEFAULT_MODEL;
@@ -683,9 +706,10 @@ export const analyzePromptExecution = async (req, res) => {
       });
     }
 
-    if (!process.env.OPENAI_API_KEY) {
+    const hasApiKey = Boolean(process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY);
+    if (!hasApiKey) {
       return res.status(500).json({
-        message: "AI execution is not configured on the server yet.",
+        message: "AI execution is not configured on the server yet. Please add GROQ_API_KEY to your server/.env file.",
       });
     }
 
@@ -698,9 +722,9 @@ export const analyzePromptExecution = async (req, res) => {
 
     let result;
     try {
-      result = await callOpenAIAnalyze({ prompt: content, model });
+      result = await callAIAnalyze({ prompt: content, model });
     } catch (err) {
-      console.error("OpenAI analyze error:", err.message);
+      console.error("AI analyze error:", err.message);
       await refundCredit(req.userId);
 
       if (err.code === "ANALYSIS_INVALID_RESPONSE") {
@@ -709,8 +733,8 @@ export const analyzePromptExecution = async (req, res) => {
         });
       }
 
-      return res.status(mapOpenAIErrorStatus(err)).json({
-        message: mapOpenAIErrorMessage(err),
+      return res.status(mapAIErrorStatus(err)).json({
+        message: mapAIErrorMessage(err),
       });
     }
 

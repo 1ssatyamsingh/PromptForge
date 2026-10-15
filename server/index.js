@@ -16,8 +16,10 @@ dotenv.config();
 
 const app = express();
 
-connectDB();
+// Trust reverse proxy (required for secure cookies & HTTPS recognition on Render, Railway, Vercel, Heroku)
+app.set("trust proxy", 1);
 
+connectDB();
 
 app.use(
   helmet({
@@ -27,22 +29,24 @@ app.use(
   })
 );
 
+const defaultOrigins = ["http://localhost:5173", "http://localhost:3000"];
+const envOrigins = (process.env.CLIENT_URL || "")
+  .split(",")
+  .map((url) => url.trim().replace(/\/+$/, ""))
+  .filter(Boolean);
 
-const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
-
-const allowedOrigins = [
-  "http://localhost:5173",
-   CLIENT_URL,
-];
+const allowedOrigins = Array.from(new Set([...defaultOrigins, ...envOrigins]));
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
+      // Allow requests with no origin (e.g. mobile apps, curl, uptime bots)
+      if (!origin) return callback(null, true);
+      const cleanOrigin = origin.replace(/\/+$/, "");
+      if (allowedOrigins.includes(cleanOrigin) || allowedOrigins.includes(origin)) {
+        return callback(null, true);
       }
+      return callback(new Error(`CORS blocked for origin: ${origin}`));
     },
     credentials: true,
   })
@@ -50,17 +54,25 @@ app.use(
 app.use(express.json());
 app.use(cookieParser());
 
+app.get("/", (req, res) => {
+  res.json({
+    message: "PromptForge API is running",
+    status: "healthy",
+  });
+});
+
+app.get("/api/health", (req, res) => {
+  res.json({
+    status: "ok",
+    timestamp: new Date().toISOString(),
+  });
+});
+
+
 app.use("/api/auth", authRoutes);
 app.use("/api/collections", collectionRoutes);
 app.use("/api/prompts", promptRoutes);
 app.use("/api/analytics", analyticsRoutes);
-
-app.get("/", (req, res) => {
-  res.json({
-    message: "PromptForge API is running",
-  });
-});
-
 
 app.use("/api", (req, res) => {
   res.status(404).json({ message: "Not found" });
