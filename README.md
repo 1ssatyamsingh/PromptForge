@@ -303,9 +303,9 @@ Open the application
 
 ## Author
 
-**Utkarsh Singh**
+**Satyam Singh**
 
-GitHub: https://github.com/Utkarsh30git
+GitHub: https://github.com/1ssatyamsingh
 
 
 
